@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Capital Stack Dashboard</title>
+  <meta name="description" content="Interactive capital stack and cost breakdown dashboard for affordable housing development." />
+
+  <link rel="preconnect" href="https://api.fontshare.com" crossorigin />
+  <link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,600,700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+
+  <style>
+    /* ── Design tokens ── */
+    :root, [data-theme="light"] {
+      --bg:               #f4f7fa;
+      --surface:          #ffffff;
+      --surface-2:        #f8fbfd;
+      --surface-offset:   #eaf2f7;
+      --border:           #d0dde8;
+      --divider:          #e3edf5;
+      --text:             #1a2c3d;
+      --text-muted:       #5a7a90;
+      --text-faint:       #a0bac8;
+
+      --primary:          #1b4965;
+      --primary-hover:    #153a52;
+      --primary-light:    #dceef8;
+
+      --c1:               #1b4965; /* Permanent Mortgage - dark navy */
+      --c1-light:         #d0e4f0;
+      --c2:               #5fa8d3; /* LIHTC - mid blue */
+      --c2-light:         #ddf0fc;
+      --c3:               #62b6cb; /* SAIL - teal */
+      --c3-light:         #dcf3f8;
+      --c4:               #bee9e8; /* ELI - pale teal */
+      --c4-light:         #eefbfb;
+      --c5:               #cae9ff; /* Dev Fee - soft blue */
+      --c5-light:         #f0f9ff;
+
+      --cost-hard:        #1b4965;
+      --cost-sustain:     #5fa8d3;
+      --cost-land:        #bee9e8;
+      --cost-soft:        #62b6cb;
+      --cost-other:       #cae9ff;
+
+      --radius-sm:        0.375rem;
+      --radius-md:        0.5rem;
+      --radius-lg:        0.75rem;
+      --shadow-sm:        0 1px 2px rgba(27,73,101,0.06);
+      --shadow-md:        0 4px 12px rgba(27,73,101,0.10);
+      --shadow-lg:        0 12px 32px rgba(27,73,101,0.14);
+      --transition:       180ms cubic-bezier(0.16, 1, 0.3, 1);
+      --font-body:        'Satoshi', 'Helvetica Neue', sans-serif;
+    }
+
+    [data-theme="dark"] {
+      --bg:               #111820;
+      --surface:          #172030;
+      --surface-2:        #1c2838;
+      --surface-offset:   #141d2a;
+      --border:           #283a50;
+      --divider:          #1e2f42;
+      --text:             #c8dae8;
+      --text-muted:       #5f8aaa;
+      --text-faint:       #3a5570;
+
+      --primary:          #5fa8d3;
+      --primary-hover:    #7abfe0;
+      --primary-light:    #1a3045;
+
+      --c1:               #4f8cb0;
+      --c1-light:         #1a2e3d;
+      --c2:               #7abfe0;
+      --c2-light:         #192840;
+      --c3:               #62b6cb;
+      --c3-light:         #18303a;
+      --c4:               #3a8a98;
+      --c4-light:         #162830;
+      --c5:               #4a7fa0;
+      --c5-light:         #142535;
+
+      --shadow-sm:        0 1px 3px rgba(0,0,0,0.3);
+      --shadow-md:        0 4px 14px rgba(0,0,0,0.4);
+      --shadow-lg:        0 12px 36px rgba(0,0,0,0.5);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; scroll-behavior: smooth; }
+    body {
+      min-height: 100dvh;
+      font-family: var(--font-body);
+      font-size: clamp(0.875rem, 0.82rem + 0.25vw, 1rem);
+      color: var(--text);
+      background: var(--bg);
+      transition: background var(--transition), color var(--transition);
+    }
+    button { cursor: pointer; font: inherit; color: inherit; background: none; border: none; }
+    input  { font: inherit; color: inherit; }
+
+    /* ── Layout ── */
+    .app { max-width: 1200px; margin: 0 auto; padding: 2rem 1.5rem 5rem; }
+
+    /* ── Header ── */
+    .header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 2.5rem; gap: 1rem; flex-wrap: wrap;
+    }
+    .header-left  { display: flex; align-items: center; gap: 0.75rem; }
+    .site-title   { font-size: clamp(1.1rem, 1rem + 0.5vw, 1.4rem); font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; }
+    .site-subtitle{ font-size: 0.72rem; color: var(--text-muted); font-weight: 500; margin-top: 0.1rem; }
+    .header-actions{ display: flex; gap: 0.5rem; align-items: center; }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 0.375rem;
+      padding: 0.5rem 1rem; font-size: 0.8125rem; font-weight: 600;
+      border-radius: var(--radius-md);
+      transition: background var(--transition), color var(--transition), border-color var(--transition);
+      white-space: nowrap;
+    }
+    .btn-primary { background: var(--primary); color: #fff; border: 1.5px solid transparent; }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-ghost   { background: transparent; color: var(--text-muted); border: 1.5px solid var(--border); }
+    .btn-ghost:hover { background: var(--surface-offset); color: var(--text); }
+
+    .theme-toggle {
+      width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;
+      border-radius: var(--radius-md); border: 1.5px solid var(--border);
+      color: var(--text-muted); background: transparent;
+      transition: background var(--transition), color var(--transition);
+    }
+    .theme-toggle:hover { background: var(--surface-offset); color: var(--text); }
+
+    /* ── KPI Strip ── */
+    .kpi-strip {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 1rem; margin-bottom: 2rem;
+    }
+    .kpi-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: 1rem 1.25rem; box-shadow: var(--shadow-sm);
+    }
+    .kpi-label {
+      font-size: 0.68rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.07em; color: var(--text-muted); margin-bottom: 0.3rem;
+    }
+    .kpi-value {
+      font-size: clamp(1.15rem, 1rem + 0.8vw, 1.6rem); font-weight: 700;
+      letter-spacing: -0.02em; font-variant-numeric: tabular-nums lining-nums; line-height: 1.1;
+    }
+    .kpi-value.c1 { color: var(--c1); }
+    .kpi-value.c2 { color: var(--c2); }
+    .kpi-value.c3 { color: var(--c3); }
+    .kpi-value.primary { color: var(--primary); }
+    .kpi-badge {
+      display: inline-block; margin-top: 0.35rem; font-size: 0.7rem; font-weight: 600;
+      padding: 0.15rem 0.5rem; border-radius: var(--radius-full, 9999px);
+    }
+    .badge-c1 { background: var(--c1-light); color: var(--c1); }
+    .badge-c2 { background: var(--c2-light); color: var(--c2); }
+    .badge-c3 { background: var(--c3-light); color: var(--c3); }
+    .badge-neutral { background: var(--surface-offset); color: var(--text-muted); }
+
+    /* ── Two-column grid ── */
+    .main-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem; }
+    @media (max-width: 860px) { .main-grid { grid-template-columns: 1fr; } }
+
+    /* ── Panel ── */
+    .panel {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: 1.5rem; box-shadow: var(--shadow-sm);
+    }
+    .panel-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 1.25rem; gap: 0.5rem; }
+    .panel-title  { font-size: 0.95rem; font-weight: 700; letter-spacing: -0.01em; }
+    .panel-sub    { font-size: 0.72rem; color: var(--text-muted); margin-top: 0.2rem; }
+    .panel-full   { grid-column: 1 / -1; }
+
+    /* ── Capital Stack visual ── */
+    .stack-wrap { display: flex; gap: 2rem; align-items: flex-start; }
+    .stack-bars { display: flex; flex-direction: column; gap: 0; width: 140px; flex-shrink: 0; }
+    .stack-bar {
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.72rem; font-weight: 700; color: #fff; border-radius: 0;
+      transition: height var(--transition); position: relative; overflow: hidden;
+      cursor: default;
+    }
+    .stack-bar:first-child { border-radius: var(--radius-md) var(--radius-md) 0 0; }
+    .stack-bar:last-child  { border-radius: 0 0 var(--radius-md) var(--radius-md); }
+    .stack-bar:only-child  { border-radius: var(--radius-md); }
+    .stack-bar-inner { text-align: center; padding: 0.3rem; z-index: 1; pointer-events: none; }
+
+    .stack-legend { flex: 1; display: flex; flex-direction: column; gap: 0.65rem; justify-content: center; }
+    .legend-item  { display: flex; align-items: center; gap: 0.6rem; }
+    .legend-swatch{ width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+    .legend-name  { font-size: 0.8rem; font-weight: 600; flex: 1; }
+    .legend-right { text-align: right; }
+    .legend-val   { font-size: 0.82rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .legend-pct   { font-size: 0.68rem; color: var(--text-muted); }
+    .legend-role  { font-size: 0.68rem; color: var(--text-faint); margin-top: 0.05rem; }
+
+    /* ── Chart canvas ── */
+    .chart-wrap { position: relative; height: 260px; }
+
+    /* ── Table ── */
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    .data-table th {
+      padding: 0.5rem 0.75rem; text-align: left; font-size: 0.68rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted);
+      border-bottom: 1px solid var(--divider);
+    }
+    .data-table td { padding: 0.55rem 0.75rem; border-bottom: 1px solid var(--divider); vertical-align: middle; }
+    .data-table tr:last-child td { border-bottom: none; }
+    .data-table tr.row-total td { font-weight: 700; background: var(--surface-offset); }
+
+    .type-pill {
+      display: inline-block; font-size: 0.62rem; font-weight: 600; padding: 0.1rem 0.45rem;
+      border-radius: 9999px; margin-left: 0.4rem; vertical-align: middle;
+    }
+    .pill-senior { background: var(--c1-light); color: var(--c1); }
+    .pill-equity { background: var(--c2-light); color: var(--c2); }
+    .pill-soft   { background: var(--c3-light); color: var(--c3); }
+    .pill-sub    { background: var(--c4-light); color: var(--c4); }
+    .pill-deferred { background: var(--c5-light); color: var(--text-muted); }
+
+    /* ── Inputs panel ── */
+    .inputs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    @media (max-width: 540px) { .inputs-grid { grid-template-columns: 1fr; } }
+    .input-group { display: flex; flex-direction: column; gap: 0.35rem; }
+    .input-label { font-size: 0.72rem; font-weight: 600; color: var(--text-muted); }
+    .input-row   { display: flex; align-items: center; gap: 0.4rem; }
+    .input-prefix{ font-size: 0.82rem; font-weight: 600; color: var(--text-muted); }
+    .input-field {
+      flex: 1; background: var(--surface-offset); border: 1.5px solid var(--border);
+      border-radius: var(--radius-md); padding: 0.45rem 0.6rem; font-size: 0.85rem;
+      font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text);
+      transition: border-color var(--transition), box-shadow var(--transition);
+      min-width: 0;
+    }
+    .input-field:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in oklch, var(--primary) 18%, transparent); }
+    .inputs-footer { margin-top: 1rem; display: flex; gap: 0.5rem; justify-content: flex-end; flex-wrap: wrap; }
+
+    /* ── Metrics row ── */
+    .metrics-row { display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--divider); }
+    .metric-chip {
+      flex: 1; min-width: 120px; background: var(--surface-2); border: 1px solid var(--border);
+      border-radius: var(--radius-md); padding: 0.6rem 0.9rem;
+    }
+    .metric-chip-label { font-size: 0.65rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+    .metric-chip-value { font-size: 1rem; font-weight: 700; color: var(--primary); font-variant-numeric: tabular-nums; margin-top: 0.15rem; }
+
+    /* ── Progress bar (gap/coverage) ── */
+    .gap-bar-wrap { margin-top: 0.75rem; }
+    .gap-bar-label{ display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--text-muted); margin-bottom: 0.35rem; }
+    .gap-bar-track{ height: 8px; background: var(--surface-offset); border-radius: 99px; overflow: hidden; }
+    .gap-bar-fill { height: 100%; border-radius: 99px; background: var(--primary); transition: width 400ms cubic-bezier(0.16,1,0.3,1); }
+
+    /* ── Value flash animation ── */
+    @keyframes flash-update {
+      0%   { opacity: 0.4; transform: translateY(-3px); }
+      100% { opacity: 1;   transform: translateY(0); }
+    }
+    .value-updated { animation: flash-update 300ms ease-out; }
+
+    /* ── Responsive ── */
+    @media (max-width: 640px) {
+      .app { padding: 1.25rem 1rem 4rem; }
+      .stack-wrap { flex-direction: column; }
+      .stack-bars { width: 100%; flex-direction: row; height: 60px; }
+      .stack-bar  { flex: 1; }
+      .stack-bar:first-child { border-radius: var(--radius-md) 0 0 var(--radius-md); }
+      .stack-bar:last-child  { border-radius: 0 var(--radius-md) var(--radius-md) 0; }
+    }
+
+    /* ── Section divider ── */
+    .section-label {
+      font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--text-faint); margin: 2rem 0 1rem; padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--divider);
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ── Header ── -->
+  <header class="header">
+    <div class="header-left">
+      <!-- Logo -->
+      <svg class="logo-mark" aria-label="Capital Stack" width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="36" height="36" rx="8" fill="#1b4965"/>
+        <rect x="7" y="22" width="22" height="5" rx="2" fill="#ffffff" opacity="1"/>
+        <rect x="7" y="15" width="22" height="5" rx="2" fill="#ffffff" opacity="0.72"/>
+        <rect x="7" y="8"  width="22" height="5" rx="2" fill="#ffffff" opacity="0.44"/>
+      </svg>
+      <div>
+        <div class="site-title">Capital Stack Dashboard</div>
+        <div class="site-subtitle">Affordable Housing Development · Sources &amp; Uses</div>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-ghost" id="btn-reset">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+        Reset
+      </button>
+      <button class="theme-toggle" data-theme-toggle aria-label="Toggle theme">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ── KPI Strip ── -->
+  <div class="kpi-strip">
+    <div class="kpi-card">
+      <div class="kpi-label">Total Development Cost</div>
+      <div class="kpi-value primary" id="kpi-total">$32,041,442</div>
+      <span class="kpi-badge badge-neutral">Sources = Uses</span>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Permanent Mortgage</div>
+      <div class="kpi-value c1" id="kpi-mortgage">$14,138,160</div>
+      <span class="kpi-badge badge-c1" id="kpi-mortgage-pct">44.1% of total</span>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">LIHTC Equity</div>
+      <div class="kpi-value c2" id="kpi-lihtc">$9,604,800</div>
+      <span class="kpi-badge badge-c2" id="kpi-lihtc-pct">30.0% of total</span>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Soft Loans (SAIL + ELI)</div>
+      <div class="kpi-value c3" id="kpi-soft">$7,800,000</div>
+      <span class="kpi-badge badge-c3" id="kpi-soft-pct">24.3% of total</span>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">LIHTC Qualified Basis</div>
+      <div class="kpi-value primary" id="kpi-qb">$26,680,000</div>
+      <span class="kpi-badge badge-neutral" id="kpi-qb-pct">83.3% of TDC</span>
+    </div>
+  </div>
+
+  <!-- ── Main Grid: Capital Stack + Cost Breakdown chart ── -->
+  <div class="main-grid">
+
+    <!-- Capital Stack Visual -->
+    <div class="panel">
+      <div class="panel-header">
+        <div>
+          <div class="panel-title">Capital Stack</div>
+          <div class="panel-sub">From permanent debt (bottom) to deferred fee (top)</div>
+        </div>
+      </div>
+      <div class="stack-wrap">
+        <!-- Visual bars -->
+        <div class="stack-bars" id="stack-bars" style="height: 320px;"></div>
+        <!-- Legend -->
+        <div class="stack-legend" id="stack-legend"></div>
+      </div>
+      <!-- Coverage bar -->
+      <div class="gap-bar-wrap">
+        <div class="gap-bar-label">
+          <span>Sources Coverage</span>
+          <span id="gap-coverage-val">100.0%</span>
+        </div>
+        <div class="gap-bar-track">
+          <div class="gap-bar-fill" id="gap-bar-fill" style="width: 100%;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cost Breakdown Chart -->
+    <div class="panel">
+      <div class="panel-header">
+        <div>
+          <div class="panel-title">Development Cost Breakdown</div>
+          <div class="panel-sub">Uses of funds — hover bars for details</div>
+        </div>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="cost-chart"></canvas>
+      </div>
+      <!-- LIHTC legend -->
+      <div style="display:flex;gap:1rem;margin-top:0.75rem;flex-wrap:wrap;">
+        <div style="display:flex;align-items:center;gap:0.4rem;font-size:0.72rem;color:var(--text-muted)">
+          <span style="width:10px;height:10px;border-radius:2px;background:var(--c1);display:inline-block;"></span>LIHTC Qualified
+        </div>
+        <div style="display:flex;align-items:center;gap:0.4rem;font-size:0.72rem;color:var(--text-muted)">
+          <span style="width:10px;height:10px;border-radius:2px;background:var(--c4);display:inline-block;border:1.5px dashed var(--c3);"></span>Non-LIHTC (Land)
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Sources Table + Inputs ── -->
+  <div class="main-grid">
+
+    <!-- Sources Table -->
+    <div class="panel">
+      <div class="panel-header">
+        <div>
+          <div class="panel-title">Sources of Financing</div>
+          <div class="panel-sub">Full capital stack with roles and share</div>
+        </div>
+      </div>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Source</th>
+            <th>Type</th>
+            <th style="text-align:right">Amount</th>
+            <th style="text-align:right">Share</th>
+          </tr>
+        </thead>
+        <tbody id="sources-tbody"></tbody>
+      </table>
+      <div class="metrics-row">
+        <div class="metric-chip">
+          <div class="metric-chip-label">Debt Coverage</div>
+          <div class="metric-chip-value" id="metric-debt-pct">44.1%</div>
+        </div>
+        <div class="metric-chip">
+          <div class="metric-chip-label">Equity + Grants</div>
+          <div class="metric-chip-value" id="metric-equity-pct">54.3%</div>
+        </div>
+        <div class="metric-chip">
+          <div class="metric-chip-label">Deferred / Gap</div>
+          <div class="metric-chip-value" id="metric-gap-pct">1.6%</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sensitivity Inputs -->
+    <div class="panel">
+      <div class="panel-header">
+        <div>
+          <div class="panel-title">Sensitivity Inputs</div>
+          <div class="panel-sub">Edit any source to update dashboard in real time</div>
+        </div>
+      </div>
+      <div class="inputs-grid">
+        <div class="input-group">
+          <label class="input-label" for="inp-mortgage">Permanent Mortgage</label>
+          <div class="input-row">
+            <span class="input-prefix">$</span>
+            <input class="input-field" id="inp-mortgage" type="number" min="0" step="10000" value="14138160" />
+          </div>
+        </div>
+        <div class="input-group">
+          <label class="input-label" for="inp-lihtc">LIHTC Actual Value</label>
+          <div class="input-row">
+            <span class="input-prefix">$</span>
+            <input class="input-field" id="inp-lihtc" type="number" min="0" step="10000" value="9604800" />
+          </div>
+        </div>
+        <div class="input-group">
+          <label class="input-label" for="inp-sail">SAIL Loan</label>
+          <div class="input-row">
+            <span class="input-prefix">$</span>
+            <input class="input-field" id="inp-sail" type="number" min="0" step="10000" value="6000000" />
+          </div>
+        </div>
+        <div class="input-group">
+          <label class="input-label" for="inp-eli">ELI Loan</label>
+          <div class="input-row">
+            <span class="input-prefix">$</span>
+            <input class="input-field" id="inp-eli" type="number" min="0" step="10000" value="1800000" />
+          </div>
+        </div>
+        <div class="input-group">
+          <label class="input-label" for="inp-devfee">Deferred Dev. Fee</label>
+          <div class="input-row">
+            <span class="input-prefix">$</span>
+            <input class="input-field" id="inp-devfee" type="number" min="0" step="1000" value="498482" />
+          </div>
+        </div>
+        <div class="input-group">
+          <label class="input-label" for="inp-qb">LIHTC Qualified Basis</label>
+          <div class="input-row">
+            <span class="input-prefix">$</span>
+            <input class="input-field" id="inp-qb" type="number" min="0" step="10000" value="26680000" />
+          </div>
+        </div>
+      </div>
+      <div class="inputs-footer">
+        <button class="btn btn-ghost" id="btn-reset2">Reset defaults</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Uses Table ── -->
+  <p class="section-label">Development Cost Detail</p>
+  <div class="panel panel-full">
+    <div class="panel-header">
+      <div>
+        <div class="panel-title">Uses of Funds — Cost Breakdown</div>
+        <div class="panel-sub">Hard and soft costs with LIHTC eligibility</div>
+      </div>
+    </div>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Line Item</th>
+          <th>Category</th>
+          <th style="text-align:right">Amount</th>
+          <th style="text-align:right">% of TDC</th>
+          <th>LIHTC Eligible</th>
+        </tr>
+      </thead>
+      <tbody id="uses-tbody"></tbody>
+    </table>
+  </div>
+
+</div><!-- /app -->
+
+<script>
+/* ═══════════════════════════════════════════
+   DEFAULTS & STATE
+═══════════════════════════════════════════ */
+const DEFAULTS = {
+  mortgage:  14138160,
+  lihtc:      9604800,
+  sail:       6000000,
+  eli:        1800000,
+  devfee:      498482,
+  qb:        26680000,
+};
+
+const USES = [
+  { label: 'Hard Construction',     cat: 'Hard Cost',    value: 18980000, lihtc: true  },
+  { label: 'Sustainable Features',  cat: 'Hard Cost',    value:  3000000, lihtc: true  },
+  { label: 'Land Acquisition',      cat: 'Soft Cost',    value:  2961442, lihtc: false },
+  { label: 'Developer Fee',         cat: 'Soft Cost',    value:  2700000, lihtc: true  },
+  { label: 'Financing Cost',        cat: 'Soft Cost',    value:  1500000, lihtc: true  },
+  { label: 'Architecture & Eng.',   cat: 'Soft Cost',    value:  1200000, lihtc: true  },
+  { label: 'Contingency',           cat: 'Soft Cost',    value:   900000, lihtc: true  },
+  { label: 'Legal',                 cat: 'Soft Cost',    value:   800000, lihtc: true  },
+];
+const TOTAL_USES = USES.reduce((a, b) => a + b.value, 0);
+
+let state = { ...DEFAULTS };
+
+const SOURCES_META = [
+  { key: 'mortgage', label: 'Permanent Mortgage', role: 'Senior debt — base of stack',          type: 'Senior Debt', pillClass: 'pill-senior', color: '#1b4965' },
+  { key: 'lihtc',    label: 'LIHTC Actual Value',  role: 'Tax credit equity — fills most of gap', type: 'Tax Credit Equity', pillClass: 'pill-equity', color: '#5fa8d3' },
+  { key: 'sail',     label: 'SAIL Loan',           role: 'Soft state loan — mezzanine layer',    type: 'Soft Loan',   pillClass: 'pill-soft',   color: '#62b6cb' },
+  { key: 'eli',      label: 'ELI Loan',            role: 'Extremely Low Income subsidy',          type: 'Subsidy Loan',pillClass: 'pill-sub',    color: '#bee9e8', textDark: true },
+  { key: 'devfee',   label: 'Deferred Dev. Fee',   role: 'Deferred fee — top of stack',           type: 'Deferred Fee',pillClass: 'pill-deferred',color: '#cae9ff', textDark: true },
+];
+
+/* ═══════════════════════════════════════════
+   FORMATTERS
+═══════════════════════════════════════════ */
+const fmt      = v => '$' + Math.round(v).toLocaleString('en-US');
+const fmtShort = v => v >= 1e6 ? '$' + (v/1e6).toFixed(1) + 'M' : v >= 1e3 ? '$' + (v/1e3).toFixed(0) + 'k' : '$' + v;
+const fmtPct   = v => (v * 100).toFixed(1) + '%';
+
+/* ═══════════════════════════════════════════
+   COMPUTE
+═══════════════════════════════════════════ */
+function compute() {
+  const total    = state.mortgage + state.lihtc + state.sail + state.eli + state.devfee;
+  const debt     = state.mortgage;
+  const equity   = state.lihtc + state.sail + state.eli;
+  const deferred = state.devfee;
+  const coverage = TOTAL_USES > 0 ? total / TOTAL_USES : 0;
+  const qbPct    = TOTAL_USES > 0 ? state.qb / TOTAL_USES : 0;
+  return { total, debt, equity, deferred, coverage, qbPct };
+}
+
+/* ═══════════════════════════════════════════
+   CHART (Cost Breakdown horizontal bar)
+═══════════════════════════════════════════ */
+let costChart = null;
+
+const COST_COLORS = [
+  '#1b4965', '#5fa8d3', '#bee9e8', '#62b6cb', '#cae9ff', '#7abfe0', '#a8d8ea', '#d0eefa'
+];
+
+function initCostChart() {
+  const ctx = document.getElementById('cost-chart').getContext('2d');
+  const labels = USES.map(u => u.label);
+  const values = USES.map(u => u.value);
+  const colors = USES.map((u, i) => u.lihtc ? COST_COLORS[i % COST_COLORS.length] : '#bee9e8');
+  const darkMode = document.documentElement.getAttribute('data-theme') === 'dark';
+  const textColor = darkMode ? '#5f8aaa' : '#5a7a90';
+  const gridColor = darkMode ? 'rgba(40,58,80,0.8)' : 'rgba(208,221,232,0.5)';
+
+  costChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        backgroundColor: colors,
+        borderWidth: 0,
+        borderRadius: 4,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (item) => {
+              const u = USES[item.dataIndex];
+              const pct = (u.value / TOTAL_USES * 100).toFixed(1);
+              return `  ${fmt(u.value)}  (${pct}%)  ${u.lihtc ? '✓ LIHTC' : '✗ Non-LIHTC'}`;
+            }
+          },
+          backgroundColor: 'rgba(20,40,60,0.9)',
+          titleColor: '#fff',
+          bodyColor: 'rgba(200,218,232,0.9)',
+          padding: 10,
+          cornerRadius: 6,
+          titleFont: { weight: '700', size: 12, family: "'Satoshi', sans-serif" },
+          bodyFont: { size: 11, family: "'Satoshi', sans-serif" },
+        }
+      },
+      scales: {
+        x: {
+          grid:   { color: gridColor },
+          border: { display: false },
+          ticks:  { color: textColor, font: { size: 10, family: "'Satoshi', sans-serif" }, callback: v => fmtShort(v) }
+        },
+        y: {
+          grid:   { display: false },
+          border: { display: false },
+          ticks:  { color: textColor, font: { size: 10, family: "'Satoshi', sans-serif" } }
+        }
+      },
+      animation: { duration: 400, easing: 'easeOutQuart' },
+    }
+  });
+}
+
+function updateCostChartColors() {
+  if (!costChart) return;
+  const darkMode = document.documentElement.getAttribute('data-theme') === 'dark';
+  const textColor = darkMode ? '#5f8aaa' : '#5a7a90';
+  const gridColor = darkMode ? 'rgba(40,58,80,0.8)' : 'rgba(208,221,232,0.5)';
+  costChart.options.scales.x.ticks.color = textColor;
+  costChart.options.scales.y.ticks.color = textColor;
+  costChart.options.scales.x.grid.color  = gridColor;
+  costChart.update('none');
+}
+
+/* ═══════════════════════════════════════════
+   STACK BARS (CSS-driven visual)
+═══════════════════════════════════════════ */
+function renderStack() {
+  const c    = compute();
+  const total = c.total;
+  const barsEl   = document.getElementById('stack-bars');
+  const legendEl = document.getElementById('stack-legend');
+  barsEl.innerHTML   = '';
+  legendEl.innerHTML = '';
+
+  // Render bottom-to-top (reverse for visual stack)
+  const ordered = [...SOURCES_META].reverse();
+  ordered.forEach(meta => {
+    const val  = state[meta.key];
+    const pct  = total > 0 ? val / total : 0;
+    const hPx  = Math.max(pct * 310, val > 0 ? 22 : 0);
+    const textColor = meta.textDark ? '#1a2c3d' : '#fff';
+    const bar  = document.createElement('div');
+    bar.className = 'stack-bar';
+    bar.style.cssText = `background:${meta.color};height:${hPx}px;color:${textColor};border-bottom:1.5px solid rgba(255,255,255,0.15);`;
+    if (hPx > 32) {
+      bar.innerHTML = `<div class="stack-bar-inner">
+        <div style="font-size:0.65rem;font-weight:700;letter-spacing:0.01em;">${(pct*100).toFixed(1)}%</div>
+      </div>`;
+    }
+    barsEl.appendChild(bar);
+  });
+
+  // Legend (top-to-bottom order = top of stack first)
+  SOURCES_META.forEach(meta => {
+    const val = state[meta.key];
+    const pct = total > 0 ? val / total : 0;
+    const item = document.createElement('div');
+    item.className = 'legend-item';
+    item.innerHTML = `
+      <span class="legend-swatch" style="background:${meta.color};${meta.textDark ? 'border:1px solid #c0d8e8;' : ''}"></span>
+      <div style="flex:1">
+        <div class="legend-name">${meta.label}</div>
+        <div class="legend-role">${meta.role}</div>
+      </div>
+      <div class="legend-right">
+        <div class="legend-val" style="color:${meta.color === '#cae9ff' || meta.color === '#bee9e8' ? 'var(--text)' : meta.color}">${fmt(val)}</div>
+        <div class="legend-pct">${(pct*100).toFixed(1)}%</div>
+      </div>`;
+    legendEl.appendChild(item);
+  });
+}
+
+/* ═══════════════════════════════════════════
+   UI UPDATE
+═══════════════════════════════════════════ */
+function animateEl(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.remove('value-updated');
+  void el.offsetWidth;
+  el.classList.add('value-updated');
+}
+
+function setEl(id, val) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const str = typeof val === 'string' ? val : fmt(val);
+  if (el.textContent !== str) { el.textContent = str; animateEl(id); }
+}
+
+function updateUI() {
+  const c = compute();
+
+  // KPIs
+  setEl('kpi-total',    c.total);
+  setEl('kpi-mortgage', state.mortgage);
+  setEl('kpi-lihtc',    state.lihtc);
+  setEl('kpi-soft',     state.sail + state.eli);
+  setEl('kpi-qb',       state.qb);
+
+  const mp = c.total > 0 ? state.mortgage / c.total : 0;
+  const lp = c.total > 0 ? state.lihtc    / c.total : 0;
+  const sp = c.total > 0 ? (state.sail + state.eli) / c.total : 0;
+  const qp = TOTAL_USES > 0 ? state.qb / TOTAL_USES : 0;
+  document.getElementById('kpi-mortgage-pct').textContent = (mp*100).toFixed(1) + '% of total';
+  document.getElementById('kpi-lihtc-pct').textContent    = (lp*100).toFixed(1) + '% of total';
+  document.getElementById('kpi-soft-pct').textContent     = (sp*100).toFixed(1) + '% of total';
+  document.getElementById('kpi-qb-pct').textContent       = (qp*100).toFixed(1) + '% of TDC';
+
+  // Gap bar
+  const cov = Math.min(c.coverage, 1);
+  document.getElementById('gap-bar-fill').style.width = (cov * 100).toFixed(1) + '%';
+  document.getElementById('gap-coverage-val').textContent = (c.coverage * 100).toFixed(1) + '%';
+
+  // Metrics
+  setEl('metric-debt-pct',   c.total > 0 ? (c.debt   / c.total * 100).toFixed(1) + '%' : '–');
+  setEl('metric-equity-pct', c.total > 0 ? (c.equity / c.total * 100).toFixed(1) + '%' : '–');
+  setEl('metric-gap-pct',    c.total > 0 ? (c.deferred / c.total * 100).toFixed(1) + '%' : '–');
+
+  // Sources table
+  const tbody = document.getElementById('sources-tbody');
+  tbody.innerHTML = '';
+  SOURCES_META.forEach(meta => {
+    const val = state[meta.key];
+    const pct = c.total > 0 ? val / c.total : 0;
+    const tr  = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${meta.label}<span class="type-pill ${meta.pillClass}">${meta.type}</span></td>
+      <td style="color:var(--text-muted);font-size:0.72rem">${meta.type}</td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;font-weight:600">${fmt(val)}</td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;color:var(--text-muted)">${(pct*100).toFixed(1)}%</td>`;
+    tbody.appendChild(tr);
+  });
+  // Total row
+  const ttr = document.createElement('tr');
+  ttr.className = 'row-total';
+  ttr.innerHTML = `<td colspan="2">Total Sources</td>
+    <td style="text-align:right;font-variant-numeric:tabular-nums">${fmt(c.total)}</td>
+    <td style="text-align:right">100.0%</td>`;
+  tbody.appendChild(ttr);
+
+  // Uses table
+  const utbody = document.getElementById('uses-tbody');
+  utbody.innerHTML = '';
+  USES.forEach(u => {
+    const pct = TOTAL_USES > 0 ? u.value / TOTAL_USES * 100 : 0;
+    const tr  = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${u.label}</td>
+      <td style="color:var(--text-muted);font-size:0.72rem">${u.cat}</td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;font-weight:600">${fmt(u.value)}</td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;color:var(--text-muted)">${pct.toFixed(1)}%</td>
+      <td><span style="font-size:0.72rem;font-weight:700;color:${u.lihtc ? 'var(--c2)' : 'var(--text-faint)'}">${u.lihtc ? '✓ Eligible' : '✗ Excluded'}</span></td>`;
+    utbody.appendChild(tr);
+  });
+  const utr = document.createElement('tr');
+  utr.className = 'row-total';
+  utr.innerHTML = `<td colspan="2">Total Development Cost</td>
+    <td style="text-align:right;font-variant-numeric:tabular-nums">${fmt(TOTAL_USES)}</td>
+    <td style="text-align:right">100.0%</td><td></td>`;
+  utbody.appendChild(utr);
+
+  // Stack
+  renderStack();
+}
+
+/* ═══════════════════════════════════════════
+   INPUT BINDING
+═══════════════════════════════════════════ */
+function parseNum(s) {
+  const n = parseFloat(String(s).replace(/[^0-9.\-]/g, ''));
+  return isNaN(n) ? 0 : Math.max(0, n);
+}
+
+function bindInput(id, key) {
+  const el = document.getElementById(id);
+  el.addEventListener('input', () => {
+    state[key] = parseNum(el.value);
+    updateUI();
+  });
+}
+bindInput('inp-mortgage', 'mortgage');
+bindInput('inp-lihtc',    'lihtc');
+bindInput('inp-sail',     'sail');
+bindInput('inp-eli',      'eli');
+bindInput('inp-devfee',   'devfee');
+bindInput('inp-qb',       'qb');
+
+function resetState() {
+  state = { ...DEFAULTS };
+  ['inp-mortgage','inp-lihtc','inp-sail','inp-eli','inp-devfee','inp-qb'].forEach(id => {
+    const key = id.replace('inp-', '').replace('-', '');
+    const keyMap = { inpmortgage:'mortgage', inplihtc:'lihtc', inpsail:'sail', inpeli:'eli', inpdevfee:'devfee', inpqb:'qb' };
+    const el = document.getElementById(id);
+    const k  = id === 'inp-mortgage' ? 'mortgage' : id === 'inp-lihtc' ? 'lihtc' :
+               id === 'inp-sail' ? 'sail' : id === 'inp-eli' ? 'eli' :
+               id === 'inp-devfee' ? 'devfee' : 'qb';
+    if (el) el.value = DEFAULTS[k];
+  });
+  updateUI();
+}
+document.getElementById('btn-reset').addEventListener('click', resetState);
+document.getElementById('btn-reset2').addEventListener('click', resetState);
+
+/* ═══════════════════════════════════════════
+   THEME TOGGLE
+═══════════════════════════════════════════ */
+(function(){
+  const t = document.querySelector('[data-theme-toggle]');
+  const r = document.documentElement;
+  let d = matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light';
+  r.setAttribute('data-theme', d);
+  function setIcon() {
+    t.innerHTML = d === 'dark'
+      ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>'
+      : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
+  }
+  setIcon();
+  t.addEventListener('click', () => {
+    d = d === 'dark' ? 'light' : 'dark';
+    r.setAttribute('data-theme', d);
+    setIcon();
+    updateCostChartColors();
+  });
+})();
+
+/* ═══════════════════════════════════════════
+   INIT
+═══════════════════════════════════════════ */
+initCostChart();
+updateUI();
+</script>
+</body>
+</html>
