@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Affordable Housing Pro Forma + Capital Stack Dashboard</title>
+  <meta name="description" content="Combined NOI waterfall and capital stack dashboard for affordable housing development." />
+  <link rel="preconnect" href="https://api.fontshare.com" crossorigin />
+  <link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,600,700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+  <style>
+    :root,[data-theme="light"]{
+      --bg:#f4f3ef;--surface:#faf9f7;--surface-2:#ffffff;--surface-offset:#edeae5;--border:#d4d1ca;--divider:#e2dfd9;
+      --text:#1e1b14;--text-muted:#6b6a65;--text-faint:#aeada8;--primary:#01696f;--primary-hover:#0c4e54;
+      --inflow:#2e7d46;--inflow-light:#d4edda;--inflow-bar:#3a9d5c;--deduct:#c0392b;--deduct-light:#fce4e1;--deduct-bar:#e05040;
+      --noi:#1a5c9e;--noi-light:#dce9f8;--noi-bar:#2d7dd2;--connector:#bdbdbd;
+      --c1:#1b4965;--c2:#5fa8d3;--c3:#62b6cb;--c4:#bee9e8;--c5:#cae9ff;
+      --c1l:#d6e6f0;--c2l:#dff1fb;--c3l:#ddf3f6;--c4l:#eef8f7;--c5l:#eef7ff;
+      --radius-sm:.375rem;--radius-md:.5rem;--radius-lg:.75rem;--shadow-sm:0 1px 2px rgba(0,0,0,.06);--shadow-md:0 4px 12px rgba(0,0,0,.08);
+      --transition:180ms cubic-bezier(.16,1,.3,1);--font-body:'Satoshi','Helvetica Neue',sans-serif;
+    }
+    [data-theme="dark"]{
+      --bg:#161410;--surface:#1c1b18;--surface-2:#212019;--surface-offset:#1a1917;--border:#363532;--divider:#2c2b28;
+      --text:#d1d0ce;--text-muted:#78776e;--text-faint:#565450;--primary:#4f98a3;--primary-hover:#3a8490;
+      --inflow:#4caf6e;--inflow-light:#1a3325;--inflow-bar:#3a9d5c;--deduct:#e57373;--deduct-light:#381a1a;--deduct-bar:#e05040;
+      --noi:#5b9bd5;--noi-light:#1a2e40;--noi-bar:#2d7dd2;--connector:#555;
+      --c1:#4a7896;--c2:#5fa8d3;--c3:#62b6cb;--c4:#4f8d8b;--c5:#6e9cc1;
+      --c1l:#1b2a36;--c2l:#1b2c3a;--c3l:#173237;--c4l:#152a28;--c5l:#1a2633;
+      --shadow-sm:0 1px 2px rgba(0,0,0,.25);--shadow-md:0 4px 12px rgba(0,0,0,.35);
+    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0} html{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+    body{min-height:100dvh;font-family:var(--font-body);font-size:clamp(.875rem,.82rem + .25vw,1rem);color:var(--text);background:var(--bg);transition:background var(--transition),color var(--transition)}
+    button{cursor:pointer;font:inherit;color:inherit;background:none;border:none} input{font:inherit;color:inherit}
+    .app{max-width:1220px;margin:0 auto;padding:2rem 1.5rem 4rem}
+    .header{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:2rem}
+    .header-left{display:flex;align-items:center;gap:.75rem}.header-actions{display:flex;gap:.5rem;align-items:center}
+    .site-title{font-size:clamp(1.1rem,1rem + .5vw,1.4rem);font-weight:700;letter-spacing:-.02em;line-height:1.15}.site-subtitle{font-size:.75rem;color:var(--text-muted);font-weight:500;margin-top:.1rem}
+    .btn{display:inline-flex;align-items:center;gap:.375rem;padding:.5rem 1rem;font-size:.8125rem;font-weight:600;border-radius:var(--radius-md);transition:background var(--transition),color var(--transition),border-color var(--transition);white-space:nowrap}
+    .btn-primary{background:var(--primary);color:#fff;border:1.5px solid transparent}.btn-primary:hover{background:var(--primary-hover)}
+    .btn-ghost{background:transparent;color:var(--text-muted);border:1.5px solid var(--border)}.btn-ghost:hover{background:var(--surface-offset);color:var(--text)}
+    .theme-toggle{width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:var(--radius-md);border:1.5px solid var(--border);color:var(--text-muted)}
+    .theme-toggle:hover{background:var(--surface-offset);color:var(--text)}
+    .kpi-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:1rem;margin-bottom:2rem}
+    .kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1rem 1.25rem;box-shadow:var(--shadow-sm)}
+    .kpi-label{font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);margin-bottom:.3rem}
+    .kpi-value{font-size:clamp(1.2rem,1rem + .8vw,1.7rem);font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums lining-nums;line-height:1.1}
+    .kpi-value.inflow{color:var(--inflow)} .kpi-value.noi{color:var(--noi)} .kpi-value.c1{color:var(--c1)} .kpi-value.c2{color:var(--c2)}
+    .kpi-badge{display:inline-block;margin-top:.35rem;font-size:.7rem;font-weight:600;padding:.1rem .45rem;border-radius:99px}
+    .badge-inflow{background:var(--inflow-light);color:var(--inflow)} .badge-noi{background:var(--noi-light);color:var(--noi)} .badge-c1{background:var(--c1l);color:var(--c1)} .badge-c2{background:var(--c2l);color:var(--c2)} .badge-neutral{background:var(--surface-offset);color:var(--text-muted)}
+    .section-label{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-faint);margin:2rem 0 1rem;padding-bottom:.5rem;border-bottom:1px solid var(--divider)}
+    .content-grid{display:grid;grid-template-columns:1fr 320px;gap:1.5rem;align-items:start}.two-col{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;align-items:start}
+    @media (max-width:920px){.content-grid,.two-col{grid-template-columns:1fr}}
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);overflow:hidden}
+    .card-header{padding:1.25rem 1.5rem .75rem;border-bottom:1px solid var(--divider);display:flex;align-items:center;justify-content:space-between}.card-title{font-size:.875rem;font-weight:700;letter-spacing:-.01em}.card-subtitle{font-size:.725rem;color:var(--text-muted);margin-top:.15rem}
+    .card-body{padding:1.5rem}.chart-wrap{position:relative;width:100%;height:360px}.chart-wrap.short{height:280px}
+    .chart-legend{display:flex;gap:1rem;padding:.75rem 1.5rem;border-top:1px solid var(--divider);flex-wrap:wrap}.legend-item{display:flex;align-items:center;gap:.375rem;font-size:.7rem;font-weight:600;color:var(--text-muted)}.legend-dot{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+    .wf-table{width:100%;border-collapse:collapse;font-size:.8rem}.wf-table th{text-align:left;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text-faint);padding:.5rem .75rem;border-bottom:1px solid var(--border)}.wf-table th:last-child,.wf-table td:last-child{text-align:right}
+    .wf-table td{padding:.65rem .75rem;border-bottom:1px solid var(--divider);font-variant-numeric:tabular-nums lining-nums;vertical-align:middle}.wf-table tr:last-child td{border-bottom:none}.wf-table .row-noi td{background:var(--noi-light);font-weight:800}.wf-table .row-total td{background:var(--surface-offset);font-weight:700}
+    .type-pill{display:inline-flex;align-items:center;font-size:.6rem;font-weight:700;padding:.1rem .4rem;border-radius:99px;margin-left:.35rem;text-transform:uppercase;letter-spacing:.04em;vertical-align:middle}
+    .pill-inflow{background:var(--inflow-light);color:var(--inflow)} .pill-deduct{background:var(--deduct-light);color:var(--deduct)} .pill-subtotal,.pill-noi{background:var(--noi-light);color:var(--noi)}
+    .pill-senior{background:var(--c1l);color:var(--c1)} .pill-equity{background:var(--c2l);color:var(--c2)} .pill-soft{background:var(--c3l);color:var(--c3)} .pill-sub{background:var(--c4l);color:var(--c4)} .pill-deferred{background:var(--c5l);color:var(--c5)}
+    .metrics-grid{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-top:1rem}.metric-tile{background:var(--surface-offset);border-radius:var(--radius-md);padding:.75rem 1rem;border:1px solid var(--border)}.metric-tile-label{font-size:.65rem;font-weight:700;color:var(--text-faint);text-transform:uppercase;letter-spacing:.06em}.metric-tile-val{font-size:1rem;font-weight:700;color:var(--text);margin-top:.15rem;font-variant-numeric:tabular-nums lining-nums}
+    .inputs-panel .input-section-title{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text-faint);padding:.75rem 1.25rem .4rem}
+    .input-row{display:flex;align-items:center;justify-content:space-between;padding:.6rem 1.25rem;border-bottom:1px solid var(--divider);gap:.75rem;transition:background var(--transition)} .input-row:hover{background:var(--surface-offset)} .input-row:last-child{border-bottom:none}
+    .input-label-wrap{flex:1;min-width:0}.input-label{font-size:.8rem;font-weight:600;line-height:1.3}.input-field-wrap{display:flex;align-items:center;gap:.2rem;flex-shrink:0}.input-currency{font-size:.75rem;color:var(--text-muted);font-weight:600}
+    .input-field{width:120px;padding:.3rem .5rem;font-size:.8125rem;font-weight:600;font-variant-numeric:tabular-nums lining-nums;text-align:right;background:var(--surface-2);border:1.5px solid var(--border);border-radius:var(--radius-sm);outline:none;transition:border-color var(--transition),box-shadow var(--transition);color:var(--text)}
+    .input-field:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(1,105,111,.12)} .input-field.changed{border-color:var(--primary);background:var(--noi-light)}
+    .noi-result-row{display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;background:var(--noi-light);border-top:2px solid var(--noi);gap:.75rem}.noi-result-label{font-size:.875rem;font-weight:700;color:var(--noi)}.noi-result-value{font-size:1.15rem;font-weight:800;color:var(--noi);font-variant-numeric:tabular-nums lining-nums;letter-spacing:-.02em}
+    .reset-row{padding:.75rem 1.25rem;display:flex;justify-content:flex-end;border-top:1px solid var(--divider)}
+    .stack-visual{display:flex;gap:1.5rem;align-items:flex-start}.stack-bars{width:150px;height:320px;display:flex;flex-direction:column-reverse}.stack-seg{width:100%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:.72rem;font-weight:700;transition:height .3s ease}.stack-seg:first-child{border-radius:0 0 var(--radius-md) var(--radius-md)}.stack-seg:last-child{border-radius:var(--radius-md) var(--radius-md) 0 0}.stack-legend{flex:1;display:flex;flex-direction:column;gap:.75rem}.stack-legend-row{display:grid;grid-template-columns:14px 1fr auto;gap:.6rem;align-items:start}.stack-swatch{width:14px;height:14px;border-radius:3px;margin-top:.15rem}.stack-name{font-size:.82rem;font-weight:700}.stack-role{font-size:.7rem;color:var(--text-muted);margin-top:.08rem}.stack-amt{text-align:right}.stack-amt strong{display:block;font-size:.82rem}.stack-amt span{font-size:.68rem;color:var(--text-muted)}
+    .footer{margin-top:3rem;padding-top:1.5rem;border-top:1px solid var(--divider);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem}.footer-note,.footer-brand{font-size:.7rem;color:var(--text-faint)}.footer-brand{font-weight:700}
+    @keyframes pulse-value{0%{opacity:.5;transform:scale(.97)}100%{opacity:1;transform:scale(1)}} .value-updated{animation:pulse-value 300ms ease-out forwards}
+  </style>
+</head>
+<body>
+<div class="app" id="dashboard">
+  <header class="header">
+    <div class="header-left">
+      <svg class="logo-mark" width="36" height="36" viewBox="0 0 36 36" fill="none" aria-label="Affordable housing dashboard logo"><rect width="36" height="36" rx="9" fill="var(--primary)"/><rect x="5" y="8" width="7" height="20" rx="2" fill="rgba(255,255,255,.9)"/><rect x="14.5" y="13" width="7" height="15" rx="2" fill="rgba(255,255,255,.65)"/><rect x="24" y="19" width="7" height="9" rx="2" fill="rgba(255,255,255,.45)"/></svg>
+      <div><div class="site-title">Affordable Housing Finance Dashboard</div><div class="site-subtitle">NOI Waterfall + Capital Stack + Sources &amp; Uses</div></div>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-ghost" id="btn-reset-all">Reset all</button>
+      <button class="theme-toggle" id="theme-toggle" data-theme-toggle aria-label="Switch theme"><svg id="theme-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
+    </div>
+  </header>
+
+  <p class="section-label">Housing Units</p>
+  <div class="two-col">
+    <!-- Treemap card -->
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">Unit Distribution Treemap</div>
+          <div class="card-subtitle">Unit type · Funding source · Monthly rent · Total units</div>
+        </div>
+        <div style="background:var(--c1);color:#fff;font-size:.72rem;font-weight:700;padding:.3rem .75rem;border-radius:99px">104 Total Units</div>
+      </div>
+      <div class="card-body" style="padding-bottom:.75rem">
+        <div id="treemap-container" style="position:relative;width:100%;aspect-ratio:1/1;border-radius:8px;overflow:hidden">
+          <svg id="treemap-svg" style="width:100%;height:100%;display:block"></svg>
+        </div>
+        <div id="treemap-legend" style="display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:1rem"></div>
+      </div>
+    </div>
+
+    <!-- Units table card -->
+    <div class="card">
+      <div class="card-header"><div><div class="card-title">Unit Mix Detail</div><div class="card-subtitle">Bedroom type, subsidy, rent, and share of total</div></div></div>
+      <div class="card-body" style="padding:0 0 .5rem">
+        <table class="wf-table">
+          <thead><tr><th>Unit Type</th><th>Funding</th><th style="text-align:right">Monthly Rent</th><th style="text-align:right">Units</th><th style="text-align:right">Share</th></tr></thead>
+          <tbody id="units-tbody"></tbody>
+        </table>
+        <div style="padding:0 1.25rem 1.25rem">
+          <div class="metrics-grid" style="margin-top:1rem">
+            <div class="metric-tile"><div class="metric-tile-label">Total Units</div><div class="metric-tile-val" style="color:var(--c1)">104</div></div>
+            <div class="metric-tile"><div class="metric-tile-label">Subsidized Units</div><div class="metric-tile-val" style="color:var(--c2)">62</div></div>
+            <div class="metric-tile"><div class="metric-tile-label">LIHTC Units</div><div class="metric-tile-val" style="color:var(--c2)">40</div></div>
+            <div class="metric-tile"><div class="metric-tile-label">Avg. Monthly Rent</div><div class="metric-tile-val" style="color:var(--c3)" id="metric-avg-rent">—</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+
+
+  <p class="section-label">Operations</p>
+  <!-- Operations KPI strip (top) -->
+  <div class="kpi-strip">
+    <div class="kpi-card"><div class="kpi-label">Gross Potential Rent</div><div class="kpi-value inflow" id="kpi-gpr">—</div><span class="kpi-badge badge-inflow">Inflow</span></div>
+    <div class="kpi-card"><div class="kpi-label">Effective Gross Income</div><div class="kpi-value inflow" id="kpi-egi">—</div><span class="kpi-badge badge-inflow">After Vacancy</span></div>
+    <div class="kpi-card"><div class="kpi-label">Total Deductions</div><div class="kpi-value" style="color:var(--deduct)" id="kpi-deductions">—</div><span class="kpi-badge" style="background:var(--deduct-light);color:var(--deduct)">Outflow</span></div>
+    <div class="kpi-card"><div class="kpi-label">Net Operating Income</div><div class="kpi-value noi" id="kpi-noi">—</div><span class="kpi-badge badge-noi">NOI</span></div>
+  </div>
+  <div class="content-grid">
+    <div>
+      <div class="card">
+        <div class="card-header"><div><div class="card-title">Waterfall Chart</div><div class="card-subtitle">Income bridge from GPR to NOI — hover bars for details</div></div></div>
+        <div class="card-body" style="padding-bottom:.5rem"><div class="chart-wrap"><canvas id="waterfall-chart"></canvas></div></div>
+        <div class="chart-legend"><div class="legend-item"><div class="legend-dot" style="background:var(--inflow-bar)"></div>Inflow / Revenue</div><div class="legend-item"><div class="legend-dot" style="background:var(--deduct-bar)"></div>Deduction / Expense</div><div class="legend-item"><div class="legend-dot" style="background:var(--noi-bar)"></div>Net Operating Income</div></div>
+      </div>
+      <div class="card" style="margin-top:1.5rem">
+        <div class="card-header"><div><div class="card-title">Income Statement</div><div class="card-subtitle">Full breakdown with waterfall running balance</div></div></div>
+        <div class="card-body" style="padding:0 0 .5rem"><table class="wf-table"><thead><tr><th>Line Item</th><th>Type</th><th style="text-align:right">Amount</th><th style="text-align:right">Running Balance</th></tr></thead><tbody id="income-table-body"></tbody></table>
+          <div style="padding:0 1.25rem 1.25rem"><div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text-faint);margin-bottom:.5rem">Derived Metrics</div><div class="metrics-grid"><div class="metric-tile"><div class="metric-tile-label">Vacancy Rate</div><div class="metric-tile-val" id="metric-vacancy-rate"></div></div><div class="metric-tile"><div class="metric-tile-label">Expense Ratio</div><div class="metric-tile-val" id="metric-expense-ratio"></div></div><div class="metric-tile"><div class="metric-tile-label">Cap Rate</div><div class="metric-tile-val" id="metric-cap-rate"></div></div><div class="metric-tile"><div class="metric-tile-label">Property Value</div><div class="metric-tile-val" id="metric-prop-val"></div></div></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="card inputs-panel">
+      <div class="card-header"><div><div class="card-title">NOI Sensitivity Inputs</div><div class="card-subtitle">Edit any value to update in real time</div></div></div>
+      <div class="input-section-title">Revenue</div>
+      <div class="input-row"><div class="input-label-wrap"><div class="input-label">Gross Potential Rent <span class="type-pill pill-inflow">Inflow</span></div></div><div class="input-field-wrap"><span class="input-currency">$</span><input type="number" class="input-field" id="inp-gpr" value="1480872" min="0" step="1000"></div></div>
+      <div class="input-section-title">Vacancy &amp; Credit Loss</div>
+      <div class="input-row"><div class="input-label-wrap"><div class="input-label">Vacancy Loss <span class="type-pill pill-deduct">Deduct</span></div></div><div class="input-field-wrap"><span class="input-currency">$</span><input type="number" class="input-field" id="inp-vacancy" value="88852" min="0" step="1000"></div></div>
+      <div class="input-section-title">Operating Expenses</div>
+      <div class="input-row"><div class="input-label-wrap"><div class="input-label">Operating Expenses <span class="type-pill pill-deduct">Deduct</span></div></div><div class="input-field-wrap"><span class="input-currency">$</span><input type="number" class="input-field" id="inp-opex" value="218912" min="0" step="1000"></div></div>
+      <div class="input-row"><div class="input-label-wrap"><div class="input-label">Replacement Reserves <span class="type-pill pill-deduct">Deduct</span></div></div><div class="input-field-wrap"><span class="input-currency">$</span><input type="number" class="input-field" id="inp-reserves" value="36400" min="0" step="100"></div></div>
+      <div class="input-section-title">Valuation</div>
+      <div class="input-row"><div class="input-label-wrap"><div class="input-label">Property Value</div></div><div class="input-field-wrap"><span class="input-currency">$</span><input type="number" class="input-field" id="inp-prop" value="2961442" min="0" step="1000"></div></div>
+      <div class="noi-result-row"><div class="noi-result-label">Net Operating Income</div><div class="noi-result-value" id="noi-display">—</div></div>
+      <div class="reset-row"><button class="btn btn-ghost" id="btn-reset-noi">Reset NOI inputs</button></div>
+    </div>
+  </div>
+
+  <p class="section-label">Capital &amp; Uses</p>
+  <!-- Capital KPI strip -->
+  <div class="kpi-strip" style="margin-bottom:1.5rem">
+    <div class="kpi-card"><div class="kpi-label">Total Development Cost</div><div class="kpi-value c1" id="kpi-tdc">—</div><span class="kpi-badge badge-c1">Uses</span></div>
+    <div class="kpi-card"><div class="kpi-label">Permanent Mortgage</div><div class="kpi-value c1" id="kpi-mortgage">—</div><span class="kpi-badge badge-c1" id="kpi-mortgage-pct">—</span></div>
+    <div class="kpi-card"><div class="kpi-label">LIHTC Equity</div><div class="kpi-value c2" id="kpi-lihtc">—</div><span class="kpi-badge badge-c2" id="kpi-lihtc-pct">—</span></div>
+    <div class="kpi-card"><div class="kpi-label">Soft Loans (SAIL + ELI)</div><div class="kpi-value c3" id="kpi-soft">—</div><span class="kpi-badge" style="background:var(--c3l);color:var(--c3)" id="kpi-soft-pct">—</span></div>
+    <div class="kpi-card"><div class="kpi-label">LIHTC Qualified Basis</div><div class="kpi-value c2" id="kpi-qb">—</div><span class="kpi-badge badge-neutral" id="kpi-qb-pct">—</span></div>
+  </div>
+  <!-- Row 1: Capital Stack | Sources of Financing -->
+  <div class="two-col">
+    <div class="card">
+      <div class="card-header"><div><div class="card-title">Capital Stack</div><div class="card-subtitle">Sources from senior debt at the bottom to deferred fee at the top</div></div></div>
+      <div class="card-body">
+        <div class="stack-visual">
+          <div class="stack-bars" id="stack-bars"></div>
+          <div class="stack-legend" id="stack-legend"></div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div><div class="card-title">Sources of Financing</div><div class="card-subtitle">Full capital stack with roles and share</div></div></div>
+      <div class="card-body" style="padding:0 0 .5rem"><table class="wf-table"><thead><tr><th>Source</th><th>Type</th><th style="text-align:right">Amount</th><th style="text-align:right">Share</th></tr></thead><tbody id="sources-tbody"></tbody></table>
+        <div style="padding:0 1.25rem 1.25rem"><div class="metrics-grid"><div class="metric-tile"><div class="metric-tile-label">Debt Share</div><div class="metric-tile-val" id="metric-debt"></div></div><div class="metric-tile"><div class="metric-tile-label">Equity + Soft Loans</div><div class="metric-tile-val" id="metric-equity"></div></div><div class="metric-tile"><div class="metric-tile-label">Deferred Fee</div><div class="metric-tile-val" id="metric-deferred"></div></div><div class="metric-tile"><div class="metric-tile-label">Sources Coverage</div><div class="metric-tile-val" id="metric-coverage"></div></div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 2: Cost Breakdown | Capital Inputs -->
+  <div class="two-col" style="margin-top:1.5rem">
+    <div class="card">
+      <div class="card-header"><div><div class="card-title">Development Cost Breakdown</div><div class="card-subtitle">Uses of funds — hover bars for details</div></div></div>
+      <div class="card-body" style="padding-bottom:.75rem"><div class="chart-wrap short"><canvas id="cost-chart"></canvas></div></div>
+      <div class="chart-legend"><div class="legend-item"><div class="legend-dot" style="background:var(--c1)"></div>LIHTC Qualified</div><div class="legend-item"><div class="legend-dot" style="background:var(--c4);border:1px dashed var(--c3)"></div>Non-LIHTC (Land, Financing, Contingency)</div></div>
+    </div>
+    <div class="card inputs-panel">
+      <div class="card-header"><div><div class="card-title">Capital Inputs</div><div class="card-subtitle">Edit financing assumptions in real time</div></div></div>
+      <div class="input-row"><div class="input-label-wrap"><div class="input-label">Permanent Mortgage <span class="type-pill pill-senior">Senior Debt</span></div></div><div class="input-field-wrap"><span class="input-currency">$</span><input type="number" class="input-field" id="inp-mortgage" value="14138160" min="0" step="10000"></div></div>
+      <div class="input-row"><div class="input-label-wrap"><div class="input-label">LIHTC Actual Value <span class="type-pill pill-equity">Equity</span></div></div><div class="input-field-wrap"><span class="input-currency">$</span><input type="number" class="input-field" id="inp-lihtc" value="9604800" min="0" step="10000"></div></div>
+      <div class="input-row"><div class="input-label-wrap"><div class="input-label">SAIL Loan <span class="type-pill pill-soft">Soft Loan</span></div></div><div class="input-field-wrap"><span class="input-currency">$</span><input type="number" class="input-field" id="inp-sail" value="6000000" min="0" step="10000"></div></div>
+      <div class="input-row"><div class="input-label-wrap"><div class="input-label">ELI Loan <span class="type-pill pill-sub">Subsidy</span></div></div><div class="input-field-wrap"><span class="input-currency">$</span><input type="number" class="input-field" id="inp-eli" value="1800000" min="0" step="10000"></div></div>
+      <div class="input-row"><div class="input-label-wrap"><div class="input-label">Deferred Developer Fee <span class="type-pill pill-deferred">Deferred</span></div></div><div class="input-field-wrap"><span class="input-currency">$</span><input type="number" class="input-field" id="inp-devfee" value="498482" min="0" step="1000"></div></div>
+      <div class="input-row"><div class="input-label-wrap"><div class="input-label">LIHTC Qualified Basis</div></div><div class="input-field-wrap"><span class="input-currency">$</span><input type="number" class="input-field" id="inp-qb" value="26680000" min="0" step="10000"></div></div>
+      <div class="reset-row"><button class="btn btn-ghost" id="btn-reset-cap">Reset capital inputs</button></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:1.5rem">
+    <div class="card-header"><div><div class="card-title">Uses of Funds</div><div class="card-subtitle">Development cost detail with LIHTC eligibility</div></div></div>
+    <div class="card-body" style="padding:0 0 .5rem"><table class="wf-table"><thead><tr><th>Line Item</th><th>Category</th><th style="text-align:right">Amount</th><th style="text-align:right">% of TDC</th><th>LIHTC</th></tr></thead><tbody id="uses-tbody"></tbody></table></div>
+  </div>
+
+
+
+  <footer class="footer"><div class="footer-note">Combined dashboard: original NOI sensitivity structure plus capital stack, sources, and uses.</div><div class="footer-brand">Affordable Housing Finance Dashboard</div></footer>
+</div>
+<script>
+const NOI_DEFAULTS={gpr:1480872,vacancy:88852,opex:218912,reserves:36400,prop:2961442};
+const CAP_DEFAULTS={mortgage:14138160,lihtc:9604800,sail:6000000,eli:1800000,devfee:498482,qb:26680000};
+let noiState={...NOI_DEFAULTS}; let capState={...CAP_DEFAULTS};
+const USES=[
+ {label:'Hard Construction',cat:'Hard Cost',value:18980000,lihtc:true,color:'var(--c1)'},
+ {label:'Sustainable Features',cat:'Hard Cost',value:3000000,lihtc:true,color:'var(--c2)'},
+ {label:'Land Acquisition',cat:'Soft Cost',value:2961442,lihtc:false,color:'var(--c4)'},
+ {label:'Developer Fee',cat:'Soft Cost',value:2700000,lihtc:true,color:'var(--c3)'},
+ {label:'Financing Cost',cat:'Soft Cost',value:1500000,lihtc:false,color:'var(--c5)'},
+ {label:'Architecture & Eng.',cat:'Soft Cost',value:1200000,lihtc:true,color:'#9ac9e7'},
+ {label:'Contingency',cat:'Soft Cost',value:900000,lihtc:false,color:'#b8dcf3'},
+ {label:'Legal',cat:'Soft Cost',value:800000,lihtc:true,color:'#d6ecfb'}
+];
+const TOTAL_USES=USES.reduce((a,b)=>a+b.value,0);
+const SOURCES_META=[
+ {key:'mortgage',label:'Permanent Mortgage',role:'Senior debt — base of stack',type:'Senior Debt',pill:'pill-senior',color:'var(--c1)',txt:'#fff'},
+ {key:'lihtc',label:'LIHTC Actual Value',role:'Tax credit equity — fills most of gap',type:'Tax Credit Equity',pill:'pill-equity',color:'var(--c2)',txt:'#fff'},
+ {key:'sail',label:'SAIL Loan',role:'Soft state loan — mezzanine layer',type:'Soft Loan',pill:'pill-soft',color:'var(--c3)',txt:'#fff'},
+ {key:'eli',label:'ELI Loan',role:'Extremely Low Income subsidy',type:'Subsidy Loan',pill:'pill-sub',color:'var(--c4)',txt:'var(--text)'},
+ {key:'devfee',label:'Deferred Dev. Fee',role:'Deferred fee — top of stack',type:'Deferred Fee',pill:'pill-deferred',color:'var(--c5)',txt:'var(--text)'}
+];
+const fmt=n=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0}).format(n);
+const fmtPct=n=>n.toFixed(1)+'%';
+const fmtShort=n=>Math.abs(n)>=1e6?'$'+(n/1e6).toFixed(1)+'M':Math.abs(n)>=1e3?'$'+(n/1e3).toFixed(0)+'K':fmt(n);
+function animateEl(id){const el=document.getElementById(id); if(!el) return; el.classList.remove('value-updated'); void el.offsetWidth; el.classList.add('value-updated');}
+function setText(id,val){const el=document.getElementById(id); if(!el) return; const t=typeof val==='string'?val:fmt(val); if(el.textContent!==t){el.textContent=t; animateEl(id);}}
+function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+function computeNOI(s){const egi=s.gpr-s.vacancy,totalDeductions=s.vacancy+s.opex+s.reserves,noi=egi-s.opex-s.reserves,vacancyRate=s.gpr>0?s.vacancy/s.gpr*100:0,expenseRatio=egi>0?(s.opex+s.reserves)/egi*100:0,capRate=s.prop>0?noi/s.prop*100:0;return{egi,totalDeductions,noi,vacancyRate,expenseRatio,capRate};}
+function computeCap(s){const total=s.mortgage+s.lihtc+s.sail+s.eli+s.devfee; return{total,debt:s.mortgage,equity:s.lihtc+s.sail+s.eli,deferred:s.devfee,coverage:TOTAL_USES>0?total/TOTAL_USES*100:0,qbPct:TOTAL_USES>0?s.qb/TOTAL_USES*100:0};}
+function buildWaterfallBars(){const c=computeNOI(noiState); return[
+ {label:'GPR',base:0,value:noiState.gpr,color:'inflow'},
+ {label:'Vacancy',base:c.egi,value:noiState.vacancy,color:'deduct'},
+ {label:'EGI',base:0,value:c.egi,color:'inflow'},
+ {label:'OpEx',base:c.noi+noiState.reserves,value:noiState.opex,color:'deduct'},
+ {label:'Reserves',base:c.noi,value:noiState.reserves,color:'deduct'},
+ {label:'NOI',base:0,value:c.noi,color:'noi'}];
+}
+let waterfallChart,costChart;
+function initCharts(){
+ const wctx=document.getElementById('waterfall-chart').getContext('2d');
+ waterfallChart=new Chart(wctx,{type:'bar',data:{labels:[],datasets:[{data:[],backgroundColor:[],borderColor:[],borderWidth:0,borderRadius:4,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{title:(items)=>({GPR:'Gross Potential Rent',Vacancy:'Vacancy Loss',EGI:'Effective Gross Income',OpEx:'Operating Expenses',Reserves:'Replacement Reserves',NOI:'Net Operating Income'})[items[0].label]||items[0].label,label:(item)=>{const bars=buildWaterfallBars();const b=bars[item.dataIndex];const sign=b.color==='deduct'?'− ':'';return '  '+sign+fmt(b.value);}}}},scales:{x:{grid:{display:false},border:{display:false},ticks:{color:css('--text-muted'),font:{size:11,weight:'600',family:"'Satoshi', sans-serif"}}},y:{grid:{color:css('--divider')},border:{display:false},ticks:{color:css('--text-muted'),font:{size:11,family:"'Satoshi', sans-serif"},callback:v=>fmtShort(v),maxTicksLimit:7}}},animation:{duration:400,easing:'easeOutQuart'}}});
+ const cctx=document.getElementById('cost-chart').getContext('2d');
+ costChart=new Chart(cctx,{type:'bar',data:{labels:USES.map(u=>u.label),datasets:[{data:USES.map(u=>u.value),backgroundColor:[],borderWidth:0,borderRadius:4,borderSkipped:false}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:(item)=>{const u=USES[item.dataIndex];return '  '+fmt(u.value)+'  ('+(u.value/TOTAL_USES*100).toFixed(1)+'%)  '+(u.lihtc?'✓ LIHTC':'✗ Non-LIHTC');}}}},scales:{x:{grid:{color:css('--divider')},border:{display:false},ticks:{color:css('--text-muted'),font:{size:10,family:"'Satoshi', sans-serif"},callback:v=>fmtShort(v)}},y:{grid:{display:false},border:{display:false},ticks:{color:css('--text-muted'),font:{size:10,family:"'Satoshi', sans-serif"}}}},animation:{duration:400,easing:'easeOutQuart'}}});
+ updateCharts();
+}
+function updateCharts(){
+ const bars=buildWaterfallBars(); const colors=bars.map(b=>b.color==='inflow'?css('--inflow-bar'):b.color==='deduct'?css('--deduct-bar'):css('--noi-bar')); const minBar=(noiState.gpr||1)*0.005;
+ waterfallChart.data.labels=bars.map(b=>b.label); waterfallChart.data.datasets[0].data=bars.map(b=>[b.base,b.base+(b.value<minBar?minBar:b.value)]); waterfallChart.data.datasets[0].backgroundColor=colors; waterfallChart.data.datasets[0].borderColor=colors; waterfallChart.options.scales.x.ticks.color=css('--text-muted'); waterfallChart.options.scales.y.ticks.color=css('--text-muted'); waterfallChart.options.scales.y.grid.color=css('--divider'); waterfallChart.update('active');
+ costChart.data.datasets[0].backgroundColor=USES.map(u=>u.lihtc?css('--c1')===''?'#1b4965':(u.label==='Hard Construction'?css('--c1'):u.label==='Sustainable Features'?css('--c2'):u.label==='Developer Fee'?css('--c3'):u.label==='Financing Cost'?css('--c5'):u.label==='Architecture & Eng.'?'#9ac9e7':u.label==='Contingency'?'#b8dcf3':'#d6ecfb'):css('--c4'));
+ costChart.options.scales.x.ticks.color=css('--text-muted'); costChart.options.scales.y.ticks.color=css('--text-muted'); costChart.options.scales.x.grid.color=css('--divider'); costChart.update('active');
+}
+function renderIncomeTable(){const c=computeNOI(noiState); const rows=[
+ {label:'Gross Potential Rent',type:'inflow',typeLabel:'Inflow',amount:noiState.gpr,runBal:noiState.gpr,cls:''},
+ {label:'Vacancy Loss',type:'deduct',typeLabel:'Deduction',amount:-noiState.vacancy,runBal:c.egi,cls:''},
+ {label:'Effective Gross Income',type:'subtotal',typeLabel:'Subtotal',amount:c.egi,runBal:c.egi,cls:'row-total'},
+ {label:'Operating Expenses',type:'deduct',typeLabel:'Deduction',amount:-noiState.opex,runBal:c.noi+noiState.reserves,cls:''},
+ {label:'Replacement Reserves',type:'deduct',typeLabel:'Deduction',amount:-noiState.reserves,runBal:c.noi,cls:''},
+ {label:'Net Operating Income',type:'noi',typeLabel:'NOI',amount:c.noi,runBal:c.noi,cls:'row-noi'}];
+ const tbody=document.getElementById('income-table-body'); tbody.innerHTML=''; rows.forEach(r=>{const tr=document.createElement('tr'); tr.className=r.cls; const pill='pill-'+r.type; tr.innerHTML=`<td>${r.label}<span class="type-pill ${pill}">${r.typeLabel}</span></td><td style="color:var(--text-muted);font-size:.75rem;font-weight:500">${r.typeLabel}</td><td>${r.type==='deduct'?'<span style="color:var(--deduct)">− '+fmt(Math.abs(r.amount))+'</span>':r.type==='noi'?'<span style="color:var(--noi)">'+fmt(r.amount)+'</span>':'<span style="color:var(--inflow)">'+fmt(r.amount)+'</span>'}</td><td>${r.type==='noi'?'<span style="color:var(--noi);font-weight:800">'+fmt(r.runBal)+'</span>':fmt(r.runBal)}</td>`; tbody.appendChild(tr);});}
+function renderSources(){const c=computeCap(capState); const tb=document.getElementById('sources-tbody'); tb.innerHTML=''; SOURCES_META.forEach(m=>{const val=capState[m.key], pct=c.total>0?val/c.total*100:0; const tr=document.createElement('tr'); tr.innerHTML=`<td>${m.label}<span class="type-pill ${m.pill}">${m.type}</span></td><td style="color:var(--text-muted);font-size:.75rem;font-weight:500">${m.type}</td><td>${fmt(val)}</td><td>${pct.toFixed(1)}%</td>`; tb.appendChild(tr);}); const tr=document.createElement('tr'); tr.className='row-total'; tr.innerHTML=`<td colspan="2">Total Sources</td><td>${fmt(c.total)}</td><td>100.0%</td>`; tb.appendChild(tr);}
+function renderUses(){const tb=document.getElementById('uses-tbody'); tb.innerHTML=''; USES.forEach(u=>{const tr=document.createElement('tr'); tr.innerHTML=`<td>${u.label}</td><td style="color:var(--text-muted);font-size:.75rem;font-weight:500">${u.cat}</td><td>${fmt(u.value)}</td><td>${(u.value/TOTAL_USES*100).toFixed(1)}%</td><td>${u.lihtc?'<span style="color:var(--c2);font-weight:700">✓ Eligible</span>':'<span style="color:var(--text-faint);font-weight:700">✗ Excluded</span>'}</td>`; tb.appendChild(tr);}); const tr=document.createElement('tr'); tr.className='row-total'; tr.innerHTML=`<td colspan="2">Total Development Cost</td><td>${fmt(TOTAL_USES)}</td><td>100.0%</td><td></td>`; tb.appendChild(tr);}
+function renderStack(){const c=computeCap(capState); const total=c.total||1; const bars=document.getElementById('stack-bars'); const leg=document.getElementById('stack-legend'); bars.innerHTML=''; leg.innerHTML=''; [...SOURCES_META].reverse().forEach(m=>{const val=capState[m.key], pct=val/total*100, h=Math.max((val/total)*320,val>0?18:0); const seg=document.createElement('div'); seg.className='stack-seg'; seg.style.height=h+'px'; seg.style.background=`${css(m.color.replace('var(','').replace(')',''))||m.color}`; seg.style.color=m.txt; seg.innerHTML=h>34?`<div>${pct.toFixed(1)}%</div>`:''; bars.appendChild(seg);}); SOURCES_META.forEach(m=>{const val=capState[m.key], pct=val/total*100; const row=document.createElement('div'); row.className='stack-legend-row'; row.innerHTML=`<div class="stack-swatch" style="background:${css(m.color.replace('var(','').replace(')',''))||m.color}"></div><div><div class="stack-name">${m.label}</div><div class="stack-role">${m.role}</div></div><div class="stack-amt"><strong>${fmt(val)}</strong><span>${pct.toFixed(1)}%</span></div>`; leg.appendChild(row);});}
+function updateUI(){const n=computeNOI(noiState), c=computeCap(capState); setText('kpi-gpr',noiState.gpr); setText('kpi-egi',n.egi); setText('kpi-deductions',n.totalDeductions); setText('kpi-noi',n.noi); setText('kpi-tdc',TOTAL_USES); setText('kpi-mortgage',capState.mortgage); setText('kpi-lihtc',capState.lihtc); setText('kpi-soft',capState.sail+capState.eli); setText('kpi-qb',capState.qb); document.getElementById('kpi-mortgage-pct').textContent=(capState.mortgage/c.total*100).toFixed(1)+'% of sources'; document.getElementById('kpi-lihtc-pct').textContent=(capState.lihtc/c.total*100).toFixed(1)+'% of sources'; document.getElementById('kpi-soft-pct').textContent=((capState.sail+capState.eli)/c.total*100).toFixed(1)+'% of sources'; document.getElementById('kpi-qb-pct').textContent=(capState.qb/TOTAL_USES*100).toFixed(1)+'% of TDC'; setText('noi-display',n.noi); document.getElementById('metric-vacancy-rate').textContent=fmtPct(n.vacancyRate); document.getElementById('metric-expense-ratio').textContent=fmtPct(n.expenseRatio); document.getElementById('metric-cap-rate').textContent=fmtPct(n.capRate); setText('metric-prop-val',noiState.prop); document.getElementById('metric-debt').textContent=fmtPct(c.debt/c.total*100); document.getElementById('metric-equity').textContent=fmtPct(c.equity/c.total*100); document.getElementById('metric-deferred').textContent=fmtPct(c.deferred/c.total*100); document.getElementById('metric-coverage').textContent=fmtPct(c.coverage); renderIncomeTable(); renderSources(); renderUses(); renderStack(); updateCharts();}
+function parseNum(s){const n=parseFloat(String(s).replace(/[^0-9.\-]/g,'')); return isNaN(n)?0:Math.max(0,n);} 
+function bindInput(id,obj,key,defaults){const el=document.getElementById(id); el.addEventListener('input',()=>{obj[key]=parseNum(el.value); el.classList.toggle('changed',obj[key]!==defaults[key]); updateUI();});}
+bindInput('inp-gpr',noiState,'gpr',NOI_DEFAULTS); bindInput('inp-vacancy',noiState,'vacancy',NOI_DEFAULTS); bindInput('inp-opex',noiState,'opex',NOI_DEFAULTS); bindInput('inp-reserves',noiState,'reserves',NOI_DEFAULTS); bindInput('inp-prop',noiState,'prop',NOI_DEFAULTS);
+bindInput('inp-mortgage',capState,'mortgage',CAP_DEFAULTS); bindInput('inp-lihtc',capState,'lihtc',CAP_DEFAULTS); bindInput('inp-sail',capState,'sail',CAP_DEFAULTS); bindInput('inp-eli',capState,'eli',CAP_DEFAULTS); bindInput('inp-devfee',capState,'devfee',CAP_DEFAULTS); bindInput('inp-qb',capState,'qb',CAP_DEFAULTS);
+function resetNOI(){noiState={...NOI_DEFAULTS}; [['inp-gpr','gpr'],['inp-vacancy','vacancy'],['inp-opex','opex'],['inp-reserves','reserves'],['inp-prop','prop']].forEach(([id,k])=>{const el=document.getElementById(id); el.value=NOI_DEFAULTS[k]; el.classList.remove('changed');}); updateUI();}
+function resetCap(){capState={...CAP_DEFAULTS}; [['inp-mortgage','mortgage'],['inp-lihtc','lihtc'],['inp-sail','sail'],['inp-eli','eli'],['inp-devfee','devfee'],['inp-qb','qb']].forEach(([id,k])=>{const el=document.getElementById(id); el.value=CAP_DEFAULTS[k]; el.classList.remove('changed');}); updateUI();}
+function resetAll(){resetNOI(); resetCap();}
+document.getElementById('btn-reset-noi').addEventListener('click',resetNOI); document.getElementById('btn-reset-cap').addEventListener('click',resetCap); document.getElementById('btn-reset-all').addEventListener('click',resetAll);
+(function(){const html=document.documentElement,btn=document.getElementById('theme-toggle'),icon=document.getElementById('theme-icon'); let theme=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'; html.setAttribute('data-theme',theme); function applyTheme(t){html.setAttribute('data-theme',t); icon.innerHTML=t==='dark'?'<circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>':'<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>'; setTimeout(updateCharts,60);} applyTheme(theme); btn.addEventListener('click',()=>{theme=theme==='dark'?'light':'dark'; applyTheme(theme);});})();
+document.addEventListener('DOMContentLoaded',()=>{initCharts(); updateUI();});
+
+/* ═══════════════════════════════════════════════════
+   HOUSING UNITS — D3 TREEMAP
+═══════════════════════════════════════════════════ */
+const UNITS_DATA = [
+  { item: "2b/2b",  funding: "LIHTC Units",  rent: 1404, units: 40, pct: "38.5%" },
+  { item: "1b/1b",  funding: "SAIL and ELI", rent: 585,  units: 22, pct: "21.2%" },
+  { item: "1b/1b",  funding: "No Subsidy",   rent: 1246, units: 20, pct: "19.2%" },
+  { item: "2b/2b",  funding: "No Subsidy",   rent: 1493, units: 12, pct: "11.5%" },
+  { item: "Studio", funding: "No Subsidy",   rent: 1154, units: 10, pct: "9.6%"  },
+];
+const UNITS_PALETTE = ["#1b4965","#5fa8d3","#62b6cb","#bee9e8","#cae9ff"];
+
+function textContrast(hex) {
+  const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
+  return (0.299*r+0.587*g+0.114*b)/255 > 0.52 ? "#1e1b14" : "#ffffff";
+}
+
+function renderTreemap() {
+  const container = document.getElementById('treemap-container');
+  const SIZE = container.offsetWidth || 400;
+  const svg = document.getElementById('treemap-svg');
+  svg.innerHTML = '';
+  svg.setAttribute('viewBox', `0 0 ${SIZE} ${SIZE}`);
+  svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+
+  const coloredData = UNITS_DATA.map((d,i) => ({ ...d, color: UNITS_PALETTE[i] }));
+
+  // Manual squarify using d3-like slice-and-dice with two rows
+  const total = coloredData.reduce((s,d) => s+d.units, 0);
+  // Sort descending
+  const sorted = [...coloredData].sort((a,b) => b.units - a.units);
+
+  // Simple two-row layout: first item gets top portion, rest fill bottom row
+  const topH = (sorted[0].units / total) * SIZE;
+  const botH = SIZE - topH;
+  const rects = [];
+
+  // Top: first item spans full width
+  rects.push({ ...sorted[0], x: 0, y: 0, w: SIZE, h: topH });
+
+  // Bottom row: remaining items split horizontally
+  const rest = sorted.slice(1);
+  const restTotal = rest.reduce((s,d) => s+d.units, 0);
+  let cx = 0;
+  rest.forEach(d => {
+    const w = (d.units / restTotal) * SIZE;
+    rects.push({ ...d, x: cx, y: topH, w, h: botH });
+    cx += w;
+  });
+
+  const gap = 4;
+  rects.forEach(r => {
+    const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+    const rect = document.createElementNS('http://www.w3.org/2000/svg','rect');
+    rect.setAttribute('x', r.x + gap/2);
+    rect.setAttribute('y', r.y + gap/2);
+    rect.setAttribute('width', Math.max(0, r.w - gap));
+    rect.setAttribute('height', Math.max(0, r.h - gap));
+    rect.setAttribute('rx', 8);
+    rect.setAttribute('fill', r.color);
+    rect.style.transition = 'opacity .2s';
+    rect.addEventListener('mouseenter', () => rect.setAttribute('opacity','0.85'));
+    rect.addEventListener('mouseleave', () => rect.setAttribute('opacity','1'));
+    g.appendChild(rect);
+
+    const tc = textContrast(r.color);
+    const cw = r.w - gap, ch = r.h - gap;
+    const cx2 = r.x + r.w/2, cy2 = r.y + r.h/2;
+
+    if (cw > 70 && ch > 55) {
+      const fsItem  = Math.max(11, Math.min(24, Math.min(cw,ch) * 0.115));
+      const fsSub   = Math.max(9,  Math.min(15, Math.min(cw,ch) * 0.075));
+      const fsSmall = Math.max(8,  Math.min(12, Math.min(cw,ch) * 0.063));
+      const pad = Math.max(10, Math.min(cw,ch)*0.065);
+
+      const addText = (x,y,text,fs,anchor,cls,fw) => {
+        const t = document.createElementNS('http://www.w3.org/2000/svg','text');
+        t.setAttribute('x', x); t.setAttribute('y', y);
+        t.setAttribute('text-anchor', anchor||'middle');
+        t.setAttribute('fill', tc); t.setAttribute('font-size', fs);
+        t.setAttribute('font-family', "'Satoshi','Helvetica Neue',sans-serif");
+        t.setAttribute('font-weight', fw||'600');
+        t.setAttribute('pointer-events','none');
+        t.textContent = text;
+        g.appendChild(t);
+      };
+      addText(cx2, r.y + pad + fsItem*0.9, r.item, fsItem, 'middle', '', '700');
+      if (cw > 100 && ch > 80) addText(r.x + r.w - pad*0.8, r.y + pad + fsSmall*0.9, r.pct, fsSmall, 'end', '', '600');
+      if (ch > 90)  addText(cx2, cy2, r.funding, fsSub, 'middle', '', '500');
+      if (ch > 110) addText(cx2, cy2 + fsSub*1.55, '$'+r.rent+'/mo', fsSmall, 'middle', '', '400');
+      addText(cx2, r.y + r.h - pad, r.units+' Units', Math.max(10, Math.min(18, Math.min(cw,ch)*0.10)), 'middle', '', '700');
+    }
+    svg.appendChild(g);
+  });
+
+  // Legend
+  const legendEl = document.getElementById('treemap-legend');
+  legendEl.innerHTML = '';
+  rects.forEach(r => {
+    const div = document.createElement('div');
+    div.style.cssText = 'display:flex;align-items:center;gap:7px;font-size:.75rem;color:var(--text)';
+    div.innerHTML = `<div style="width:12px;height:12px;border-radius:3px;background:${r.color};flex-shrink:0"></div><span><strong>${r.item}</strong> · ${r.funding} · $${r.rent.toLocaleString()}/mo · ${r.units} units</span>`;
+    legendEl.appendChild(div);
+  });
+}
+
+function renderUnitsTable() {
+  const total = UNITS_DATA.reduce((s,d) => s+d.units, 0);
+  const tbody = document.getElementById('units-tbody');
+  tbody.innerHTML = '';
+  const sorted = [...UNITS_DATA].sort((a,b) => b.units - a.units);
+  sorted.forEach((d,i) => {
+    const tr = document.createElement('tr');
+    const color = UNITS_PALETTE[UNITS_DATA.indexOf(d)];
+    const share = (d.units / total * 100).toFixed(1);
+    const subsidyBadge = d.funding !== 'No Subsidy'
+      ? `<span class="type-pill" style="background:var(--c2l,#dff1fb);color:var(--c2)">${d.funding}</span>`
+      : `<span class="type-pill" style="background:var(--surface-offset);color:var(--text-muted)">No Subsidy</span>`;
+    tr.innerHTML = `
+      <td><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${color};margin-right:6px;vertical-align:middle"></span>${d.item}</td>
+      <td>${subsidyBadge}</td>
+      <td style="text-align:right;font-weight:600">$${d.rent.toLocaleString()}/mo</td>
+      <td style="text-align:right;font-weight:700">${d.units}</td>
+      <td style="text-align:right;color:var(--text-muted)">${share}%</td>`;
+    tbody.appendChild(tr);
+  });
+  // total row
+  const tr = document.createElement('tr');
+  tr.className = 'row-total';
+  const weightedAvg = Math.round(UNITS_DATA.reduce((s,d) => s + d.rent * d.units, 0) / total);
+  tr.innerHTML = `<td colspan="2">Total</td><td style="text-align:right">$${weightedAvg.toLocaleString()}/mo avg</td><td style="text-align:right">${total}</td><td style="text-align:right">100.0%</td>`;
+  tbody.appendChild(tr);
+
+  // Avg rent metric chip
+  const avgEl = document.getElementById('metric-avg-rent');
+  if (avgEl) avgEl.textContent = '$' + weightedAvg.toLocaleString() + '/mo';
+}
+
+// Init housing section after DOM ready
+window.addEventListener('load', () => {
+  renderTreemap();
+  renderUnitsTable();
+});
+// Re-render treemap on resize
+let resizeTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(renderTreemap, 150);
+});
+
+</script>
+</body></html>
